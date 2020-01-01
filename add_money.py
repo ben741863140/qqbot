@@ -27,7 +27,10 @@ def event_add_money():
         sql = "select value from user where boss=" + str(leader_id) + ";"
         cursor.execute(sql)
         employee = cursor.fetchall()
-        temp = int(leader[data_status.value]/2)
+        if leader[data_status.boss] != -1:
+            temp = int(leader[data_status.value]/2)
+        else:
+            temp = int(leader[data_status.value])
         for e in employee:
             temp += int(e[0]/2)
         sql = "update user set money=money+" + str(temp) + " where id=" + str(leader_id) + ";"
@@ -46,7 +49,7 @@ def event_fired():
     ls = cursor.fetchall()
     temp = datetime.datetime.now() - datetime.timedelta(days=3)
     for item in ls:
-        if temp < item[data_status.update_time] and item[data_status.boss] != -1:
+        if temp > item[data_status.update_time] and item[data_status.boss] != -1:
             sql = "update user set boss=-1 where id=" + str(item[data_status.id]) + ";"
             cursor.execute(sql)
             conn.commit()
