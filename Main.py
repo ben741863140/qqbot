@@ -5,6 +5,7 @@ import cqplus
 import pymysql
 import re
 import datetime
+import math
 
 
 class data_status:
@@ -156,7 +157,7 @@ def get_free(q):
         cursor.close()
         conn.close()
         return str(nickname[q]) + ' 赎身要付1.5倍身价的赎金哦，亲'
-    sql = "update user set money=money-" + str(int(info[data_status.value] * 1.5)) + " where id=" + str(
+    sql = "update user set boss=-1,money=money-" + str(int(info[data_status.value] * 1.5)) + " where id=" + str(
         info[data_status.id]) + ";"
     cursor.execute(sql)
     conn.commit()
@@ -206,26 +207,26 @@ def value_rank():
     return res
 
 
-def del_money(q):
+def del_money(q, m):
     conn = pymysql.connect(host='localhost', user='root', password='123456',
                            database='qqbot', charset='utf8')
     cursor = conn.cursor()
     sql = "select * from user where qq=" + str(q) + ";"
     cursor.execute(sql)
     q_info = cursor.fetchone()
-    if q_info[data_status.coins] > 0:
-        sql = "update user set coins=coins-1 where qq=" + \
+    if q_info[data_status.coins] > math.ceil(m / 100):
+        sql = "update user set coins=coins-" + str(math.ceil(m / 100)) + " where qq=" + \
               str(q) + ";"
         cursor.execute(sql)
         conn.commit()
         cursor.close()
         conn.close()
         return True
-    if q_info[data_status.money] < 100:
+    if q_info[data_status.money] < m:
         cursor.close()
         conn.close()
         return False
-    sql = "update user set money=money-100 where qq=" + \
+    sql = "update user set money=money-" + str(m) + " where qq=" + \
           str(q) + ";"
     cursor.execute(sql)
     conn.commit()
@@ -245,7 +246,7 @@ def ban(q):
     conn.close()
     if q_info[data_status.money] < 100:
         return False
-    return del_money(q)
+    return del_money(q, 100)
 
 
 def active(q):
@@ -266,9 +267,9 @@ def init(ls):
     cursor = conn.cursor()
     for item in ls:
         if item['card'] != '':
-            nickname[item['user_id']] = item['card']
+            nickname[int(item['user_id'])] = item['card']
         else:
-            nickname[item['user_id']] = item['nickname']
+            nickname[int(item['user_id'])] = item['nickname']
         sql = "select is_active from user where qq=" + str(item['user_id']) + ";"
         cursor.execute(sql)
         info = cursor.fetchone()
@@ -286,7 +287,7 @@ def add_money(q, m):
     conn.commit()
     cursor.close()
     conn.close()
-    return nickname[q] + '已加' + str(m)
+    return nickname[int(q)] + '已加' + str(m)
 
 
 def create_good(q, msg):
@@ -356,14 +357,20 @@ def shop_buy(q, good_id):
     sql = "select * from shop where id=" + good_id + ";"
     cursor.execute(sql)
     item = cursor.fetchone()
-    if item is None:
-        return '商品不存在'
+    cursor.close()
+    conn.close()
+    if item is None or item[shop_status.file_name] == '':
+        return {'str': '商品不存在'}
+    if not del_money(q, item[shop_status.value]):
+        return {'str': '余额不足，抱歉'}
+    add_money(item[shop_status.qq], int(0.8 * item[shop_status.value]))
+    return {'str': '[CQ:image,file=' + item[shop_status.file_name] + ']', 'seller': int(item[shop_status.qq]), 'name': item[shop_status.name]}
 
 
 class MainHandler(cqplus.CQPlusHandler):
     def handle_event(self, event, params):
-        group = 710175446
-        menu = '命令如下:\n 规则（必读）\n 激活(参与游戏)\n 商城\n 聘用@群里成员（如:聘用胖哥）\n 购买+商品编号（如:购买1）\n ' \
+        group = 970456639
+        menu = '命令如下:\n 规则（必读）\n 激活(参与游戏)\n 商城\n 上架\n 聘用@群里成员（如:聘用胖哥）\n 购买+商品编号（如:购买1）\n ' \
                '查询@用户（不加@' \
                '默认为自己）\n 赎身\n jb排行榜\n 身价排行榜\n 口球（禁言机器人）\n 张嘴接着（解禁机器人）\n'
         rule = '每个人都有身价，初始是200，一天工资就是自己的身价对应数量的jb,\njb可以购买商城物品，也可以聘用别人（需要给聘用费' \
@@ -454,7 +461,10 @@ class MainHandler(cqplus.CQPlusHandler):
                     return
                 r = re.compile('购买(\d*)', re.S)
                 if len(r.findall(temp)) != 0:
-                    self.api.send_private_msg(params['from_qq'], shop_buy(params['from_qq'], r.findall(temp)[0]))
+                    s = shop_buy(params['from_qq'], r.findall(temp)[0])
+                    self.api.send_private_msg(params['from_qq'], s['str'])
+                    if s['seller'] is not None:
+                        self.api.send_private_msg(s['seller'], str(nickname[params['from_qq']]) + ' 购买了你的 ' + str(s['name']))
                 r = re.compile('查询\[CQ:at,qq=(\d*)\]', re.S)
                 if len(r.findall(temp)) != 0:
                     self.api.send_group_msg(group, check(int(r.findall(temp)[0])))
@@ -476,8 +486,15 @@ class MainHandler(cqplus.CQPlusHandler):
                 self.api.send_private_msg(params['from_qq'], create_good(params['from_qq'], temp))
             r = re.compile('\[CQ:image,file=(.*?)\]', re.S)
             if len(r.findall(temp)) != 0 and upload_good(params['from_qq'], r.findall(temp)[0]):
-                self.api.send_private_msg(params['from_qq'], u'已完成上架操作')
+                self.api.send_private_msg(params['from_qq'], u'已完成上架操作，每笔交易收取20%手续费')
                 self.api.send_group_msg(group, shop_list())
+            r = re.compile('购买(\d*)', re.S)
+            if len(r.findall(temp)) != 0:
+                s = shop_buy(params['from_qq'], r.findall(temp)[0])
+                self.api.send_private_msg(params['from_qq'], s['str'])
+                if s['seller'] is not None:
+                    self.api.send_private_msg(s['seller'], str(nickname[int(params['from_qq'])]) + ' 购买了你的 ' + str(s['name']))
+
         if event == 'on_enable':
             temp = self.api.get_group_member_list(group)
             add = []
