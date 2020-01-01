@@ -5,6 +5,7 @@ import cqplus
 import pymysql
 import re
 import datetime
+import math
 
 
 class data_status:
@@ -24,10 +25,13 @@ class shop_status:
     file_name = 2
     value = 3
     name = 4
+    category = 5
 
 
 nickname = {}
 is_active = {}
+group = 970456639
+admin = 741863140
 
 
 # 查询
@@ -129,7 +133,7 @@ def buy(buyer, good):
             good_info[data_status.id]) + ";"
         cursor.execute(sql)
         conn.commit()
-        give_back = max(good_info[data_status.value]/2, 500)
+        give_back = int(min(good_info[data_status.value]/2, 500))
         down = ran()
         sql = "update user set money=money+" + str(give_back) + ",value=value-" + str(down) + " where id=" + str(
             good_info[data_status.boss]) + ";"
@@ -156,7 +160,7 @@ def get_free(q):
         cursor.close()
         conn.close()
         return str(nickname[q]) + ' 赎身要付1.5倍身价的赎金哦，亲'
-    sql = "update user set money=money-" + str(int(info[data_status.value] * 1.5)) + " where id=" + str(
+    sql = "update user set boss=-1,money=money-" + str(int(info[data_status.value] * 1.5)) + " where id=" + str(
         info[data_status.id]) + ";"
     cursor.execute(sql)
     conn.commit()
@@ -206,26 +210,26 @@ def value_rank():
     return res
 
 
-def del_money(q):
+def del_money(q, m):
     conn = pymysql.connect(host='localhost', user='root', password='123456',
                            database='qqbot', charset='utf8')
     cursor = conn.cursor()
     sql = "select * from user where qq=" + str(q) + ";"
     cursor.execute(sql)
     q_info = cursor.fetchone()
-    if q_info[data_status.coins] > 0:
-        sql = "update user set coins=coins-1 where qq=" + \
+    if q_info[data_status.coins] > math.ceil(m / 100):
+        sql = "update user set coins=coins-" + str(math.ceil(m / 100)) + " where qq=" + \
               str(q) + ";"
         cursor.execute(sql)
         conn.commit()
         cursor.close()
         conn.close()
         return True
-    if q_info[data_status.money] < 100:
+    if q_info[data_status.money] < m:
         cursor.close()
         conn.close()
         return False
-    sql = "update user set money=money-100 where qq=" + \
+    sql = "update user set money=money-" + str(m) + " where qq=" + \
           str(q) + ";"
     cursor.execute(sql)
     conn.commit()
@@ -245,7 +249,7 @@ def ban(q):
     conn.close()
     if q_info[data_status.money] < 100:
         return False
-    return del_money(q)
+    return del_money(q, 100)
 
 
 def active(q):
@@ -266,9 +270,9 @@ def init(ls):
     cursor = conn.cursor()
     for item in ls:
         if item['card'] != '':
-            nickname[item['user_id']] = item['card']
+            nickname[int(item['user_id'])] = item['card']
         else:
-            nickname[item['user_id']] = item['nickname']
+            nickname[int(item['user_id'])] = item['nickname']
         sql = "select is_active from user where qq=" + str(item['user_id']) + ";"
         cursor.execute(sql)
         info = cursor.fetchone()
@@ -286,15 +290,28 @@ def add_money(q, m):
     conn.commit()
     cursor.close()
     conn.close()
-    return nickname[q] + '已加' + str(m)
+    return nickname[int(q)] + '已加' + str(m)
 
 
 def create_good(q, msg):
-    r = re.compile('上架 (.*?) (\d*)', re.S)
-    if len(r.findall(msg)) == 0:
-        return u'请按以下格式上架: 上架 商品名称 售价'
+    r = re.compile('上架 (.*?) (\d*) (\d*)', re.S)
+    if len(r.findall(msg)) == 0 or r.findall(msg)[0][0] == '':
+        return u'请按以下格式上架: 上架 商品名称 售价 类型(输入数字即可：1.涩图，2.黑照，3.表情包)'
     name = r.findall(msg)[0][0]
-    value = r.findall(msg)[0][1]
+    if '\\' in name:
+        return u'不能带\\,抱歉'
+    if '\n' in name:
+        return u'不能带回车，抱歉'
+    if len(name) >= 20:
+        return u'名称过长，请重试'
+    value = int(r.findall(msg)[0][1])
+    if value < 10 or value > 1000:
+        return u'金额范围不合法，抱歉(10<x<1000)'
+    category = r.findall(msg)[0][2]
+    if category == '':
+        return u'类型不合法，请输入1/2/3任意一种'
+    if 1 > int(category) or int(category) > 3:
+        return u'类型不合法，请输入1/2/3任意一种'
     conn = pymysql.connect(host='localhost', user='root', password='123456',
                            database='qqbot', charset='utf8')
     cursor = conn.cursor()
@@ -305,8 +322,8 @@ def create_good(q, msg):
         cursor.close()
         conn.close()
         return u'有商品尚未完成，请上传该商品的图片先'
-    add_list = '(' + str(q) + ', ' + str(value) + ", '" + str(name) + "')"
-    sql = "insert into shop (qq, value, name) values " + add_list + ';'
+    add_list = '(' + str(q) + ', ' + str(value) + ", '" + str(name) + "', " + str(category) + ")"
+    sql = "insert into shop (qq, value, name, category) values " + add_list + ';'
     cursor.execute(sql)
     conn.commit()
     cursor.close()
@@ -324,28 +341,37 @@ def upload_good(q, img):
     if len(info) == 0:
         cursor.close()
         conn.close()
-        return False
+        return 0
     sql = "update shop set file_name='" + str(img) + "' where qq=" + str(q) + ";"
     cursor.execute(sql)
     conn.commit()
     cursor.close()
     conn.close()
-    return True
+    return info[0][shop_status.id]
 
 
-def shop_list():
-    res = '1:精美图片（100jb）\n 2:口球非管（1min/100jb） 命令为:购买2@被禁的人'
+def shop_list(num=-1, category=0):
     conn = pymysql.connect(host='localhost', user='root', password='123456',
                            database='qqbot', charset='utf8')
     cursor = conn.cursor()
-    sql = "select * from shop;"
+    if num == -1:
+        res = '1:精美图片（100jb）\n 2:口球非管（1min/100jb） 命令为:购买2@被禁的人\n'
+        sql = "select * from shop;"
+    else:
+        res = ''
+        sql = "select * from shop where id=" + str(num) + ";"
+    if category != 0:
+        res = ''
     cursor.execute(sql)
     info = cursor.fetchall()
     cursor.close()
     conn.close()
     for item in info:
-        if item[shop_status.file_name] != '':
-            res += '\n' + str(item[shop_status.id]) + '. ' + str(item[shop_status.name]) + ' 售价:' + str(item[shop_status.value])
+        if item[shop_status.file_name] != '' and (category == 0 or category == item[shop_status.category]):
+            res += str(item[shop_status.id]) + '. ' + str(item[shop_status.name]) + ' 售价:' + \
+                   str(item[shop_status.value]) + '\n'
+    if res == '':
+        return '无此类型商品'
     return res
 
 
@@ -353,24 +379,127 @@ def shop_buy(q, good_id):
     conn = pymysql.connect(host='localhost', user='root', password='123456',
                            database='qqbot', charset='utf8')
     cursor = conn.cursor()
-    sql = "select * from shop where id=" + good_id + ";"
+    sql = "select * from shop where id=" + str(good_id) + ";"
     cursor.execute(sql)
     item = cursor.fetchone()
-    if item is None:
+    cursor.close()
+    conn.close()
+    if item is None or item[shop_status.file_name] == '':
+        return {'str': '商品不存在'}
+    if not del_money(q, item[shop_status.value]):
+        return {'str': '余额不足，抱歉'}
+    add_money(item[shop_status.qq], int(0.8 * item[shop_status.value]))
+    return {'str': '[CQ:image,file=' + item[shop_status.file_name] + ']', 'seller': int(item[shop_status.qq]),
+            'name': item[shop_status.name]}
+
+
+def shop_down(q, good_id):
+    conn = pymysql.connect(host='localhost', user='root', password='123456',
+                           database='qqbot', charset='utf8')
+    cursor = conn.cursor()
+    sql = "select * from shop where id=" + str(good_id) + ";"
+    cursor.execute(sql)
+    item = cursor.fetchone()
+    if item is None or item[shop_status.file_name] == '':
         return '商品不存在'
+    if item[shop_status.qq] != str(q) and q != admin:
+        return '商品不属于你，无法下架'
+    sql = "delete from shop where id=" + str(good_id) + ";"
+    cursor.execute(sql)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return str(item[shop_status.name]) + ' 已被 ' + str(nickname[int(q)]) + '下架'
 
 
 class MainHandler(cqplus.CQPlusHandler):
-    def handle_event(self, event, params):
-        group = 710175446
-        menu = '命令如下:\n 规则（必读）\n 激活(参与游戏)\n 商城\n 聘用@群里成员（如:聘用胖哥）\n 购买+商品编号（如:购买1）\n ' \
-               '查询@用户（不加@' \
-               '默认为自己）\n 赎身\n jb排行榜\n 身价排行榜\n 口球（禁言机器人）\n 张嘴接着（解禁机器人）\n'
+    def group_and_private(self, temp, qq, G=False):
+        menus = '规则 激活 商城 购买+编号(如:购买1) 上架 下架+编号\n 聘用@群里成员（如:聘用胖哥）赎身'
+        menus2 = '查询@用户\n jb排行榜 身价排行榜\n 口球(禁言我) 张嘴接着(解禁我)'
         rule = '每个人都有身价，初始是200，一天工资就是自己的身价对应数量的jb,\njb可以购买商城物品，也可以聘用别人（需要给聘用费' \
                '），\n聘用别' \
                '人后自己的身价会上涨10~50(10有20%概率，20有30%概率，30有30%概率，40有15%，50有5%)，同时被聘用的人工资' \
                '要分一半给boss，一个人只能有1个boss，可以购买别人的员工，可以拥有多个员工\n 被聘用的人三天后恢复自由身\n 若员工被' \
                '人聘走后会随机掉身价10~50（概率如上），但是会分50%聘用费给原老板（原老板得到最多不超过500）'
+        if u'激活' == temp:
+            self.api.send_private_msg(qq, active(qq))
+            return True
+        elif u'菜单' == temp:
+            if G:
+                self.api.send_group_msg(group, u'已私聊发送菜单')
+            self.api.send_private_msg(qq, menus)
+            self.api.send_private_msg(qq, menus2)
+            return True
+        elif u'规则' == temp:
+            if is_active[qq] == 0:
+                self.api.send_private_msg(qq, str(nickname[qq]) + ' 未激活')
+                return True
+            if G:
+                self.api.send_group_msg(group, u'已私聊发送规则')
+            self.api.send_private_msg(qq, rule)
+            return True
+        elif u'商城' == temp:
+            if is_active[qq] == 0:
+                self.api.send_private_msg(qq, str(nickname[qq]) + ' 未激活')
+                return True
+            if G:
+                self.api.send_group_msg(group, shop_list() + '\n可以输入商城 类型(黑照，涩图，表情包)查看分类列表')
+            else:
+                self.api.send_private_msg(qq, shop_list() + '\n可以输入商城 类型(黑照，涩图，表情包)查看分类列表')
+            return True
+        elif u'商城 涩图' == temp:
+            if G:
+                self.api.send_group_msg(group, shop_list(-1, 1))
+            else:
+                self.api.send_private_msg(qq, shop_list(-1, 1))
+            return True
+        elif u'商城 黑照' == temp:
+            if G:
+                self.api.send_group_msg(group, shop_list(-1, 2))
+            else:
+                self.api.send_private_msg(qq, shop_list(-1, 2))
+            return True
+        elif u'商城 表情包' == temp:
+            if G:
+                self.api.send_group_msg(group, shop_list(-1, 3))
+            else:
+                self.api.send_private_msg(qq, shop_list(-1, 3))
+            return True
+        elif u'赎身' == temp:
+            if is_active[qq] == 0:
+                self.api.send_private_msg(qq, str(nickname[qq]) + ' 未激活')
+                return
+            self.api.send_group_msg(group, get_free(qq))
+            return True
+        elif u'jb排行榜' == temp:
+            if G:
+                self.api.send_group_msg(group, money_rank())
+            else:
+                self.api.send_private_msg(qq, money_rank())
+            return True
+        elif u'身价排行榜' == temp:
+            if G:
+                self.api.send_group_msg(group, value_rank())
+            else:
+                self.api.send_private_msg(qq, value_rank())
+            return True
+        r = re.compile('购买(\d*)', re.S)
+        if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
+            s = shop_buy(qq, r.findall(temp)[0])
+            self.api.send_private_msg(qq, s['str'])
+            if 'seller' in s.keys():
+                if int(qq) in nickname.keys():
+                    self.api.send_private_msg(s['seller'], str(nickname[int(qq)]) + ' 购买了你的 ' + str(s['name']))
+                else:
+                    self.api.send_private_msg(s['seller'], '有人购买了你的 ' + str(s['name']))
+            return True
+        r = re.compile('下架(\d*)', re.S)
+        if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
+            self.api.send_group_msg(group, shop_down(qq, r.findall(temp)[0]))
+            return True
+        return False
+
+    def handle_event(self, event, params):
         if event == 'on_group_msg':
             if params['from_group'] == group:
                 temp = params['msg']
@@ -386,34 +515,11 @@ class MainHandler(cqplus.CQPlusHandler):
                 if flag == 0:
                     return
                 init(self.api.get_group_member_list(group))
-                if u'激活' == temp:
-                    self.api.send_group_msg(group, active(params['from_qq']))
-                elif u'菜单' == temp:
-                    self.api.send_group_msg(group, menu)
-                elif u'规则' == temp:
-                    if is_active[params['from_qq']] == 0:
-                        self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
-                        return
-                    self.api.send_group_msg(group, rule)
-                elif u'查询' == temp:
+                if u'查询' == temp:
                     self.api.send_group_msg(group, u'查询已移到私聊，请私信机器人查询')
                     self.api.send_private_msg(params['from_qq'], check(params['from_qq']))
-                elif u'商城' == temp:
-                    if is_active[params['from_qq']] == 0:
-                        self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
-                        return
-                    self.api.send_group_msg(group, shop_list())
                 elif u'上架' == temp:
                     self.api.send_group_msg(group, u'请私聊进行上架操作')
-                elif u'赎身' == temp:
-                    if is_active[params['from_qq']] == 0:
-                        self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
-                        return
-                    self.api.send_group_msg(group, get_free(params['from_qq']))
-                elif u'jb排行榜' == temp:
-                    self.api.send_group_msg(group, money_rank())
-                elif u'身价排行榜' == temp:
-                    self.api.send_group_msg(group, value_rank())
                 elif u'口球' == temp:
                     with open('C:\\Users\\Administrator\\Downloads\\CQP\\Pro\\app\\cn.muxiaofei.coolq_sdk_x\\flag.json',
                               'w') as f:
@@ -423,7 +529,7 @@ class MainHandler(cqplus.CQPlusHandler):
                     if is_active[params['from_qq']] == 0:
                         self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
                         return
-                    if del_money(params['from_qq']):
+                    if del_money(params['from_qq'], 100):
                         f = open('C:\\Users\\Administrator\\Downloads\\CQP\\Pro\\app\\cn.muxiaofei.coolq_sdk_x\\id.json',
                                  'r')
                         id = int(f.read())
@@ -436,14 +542,15 @@ class MainHandler(cqplus.CQPlusHandler):
                             f.close()
                     else:
                         self.api.send_group_msg(group, u'余额不足')
+                    return
                 r = re.compile('聘用\[CQ:at,qq=(\d*)\]', re.S)
-                if len(r.findall(temp)) != 0:
+                if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                     if is_active[params['from_qq']] == 0:
                         self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
                         return
                     self.api.send_group_msg(group, buy(params['from_qq'], int(r.findall(temp)[0])))
                 r = re.compile('购买2\[CQ:at,qq=(\d*)\]', re.S)
-                if len(r.findall(temp)) != 0:
+                if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                     if is_active[params['from_qq']] == 0:
                         self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
                         return
@@ -452,32 +559,32 @@ class MainHandler(cqplus.CQPlusHandler):
                     else:
                         self.api.send_group_msg(group, u'余额不足')
                     return
-                r = re.compile('购买(\d*)', re.S)
-                if len(r.findall(temp)) != 0:
-                    self.api.send_private_msg(params['from_qq'], shop_buy(params['from_qq'], r.findall(temp)[0]))
+                if self.group_and_private(temp, params['from_qq'], True):
+                    return
                 r = re.compile('查询\[CQ:at,qq=(\d*)\]', re.S)
-                if len(r.findall(temp)) != 0:
+                if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                     self.api.send_group_msg(group, check(int(r.findall(temp)[0])))
-                if params['from_qq'] == 741863140:
+                if params['from_qq'] == admin:
                     r = re.compile('加钱(\d*)\[CQ:at,qq=(\d*)\]', re.S)
-                    if len(r.findall(temp)) != 0:
+                    if len(r.findall(temp)) != 0 and r.findall(temp)[0][0] != '':
                         self.api.send_group_msg(group, add_money(int(r.findall(temp)[0][1]), int(r.findall(temp)[0][0])))
 
         if event == 'on_private_msg':
             init(self.api.get_group_member_list(group))
             temp = params['msg']
-            if u'查询' == temp:
+            if self.group_and_private(temp, params['from_qq']):
+                return
+            elif u'查询' == temp:
                 self.api.send_private_msg(params['from_qq'], check(params['from_qq']))
-            elif u'jb排行榜' == temp:
-                self.api.send_private_msg(params['from_qq'], money_rank())
-            elif u'身价排行榜' == temp:
-                self.api.send_private_msg(params['from_qq'], value_rank())
             elif u'上架' in temp:
                 self.api.send_private_msg(params['from_qq'], create_good(params['from_qq'], temp))
             r = re.compile('\[CQ:image,file=(.*?)\]', re.S)
-            if len(r.findall(temp)) != 0 and upload_good(params['from_qq'], r.findall(temp)[0]):
-                self.api.send_private_msg(params['from_qq'], u'已完成上架操作')
-                self.api.send_group_msg(group, shop_list())
+            if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
+                num = upload_good(params['from_qq'], r.findall(temp)[0])
+                if num != 0:
+                    self.api.send_private_msg(params['from_qq'], u'已完成上架操作，每笔交易收取20%手续费')
+                    self.api.send_group_msg(group, shop_list(num))
+
         if event == 'on_enable':
             temp = self.api.get_group_member_list(group)
             add = []
