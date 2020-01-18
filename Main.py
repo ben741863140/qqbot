@@ -294,7 +294,7 @@ def add_money(q, m):
 
 
 def create_good(q, msg):
-    r = re.compile('上架 (.*?) (\d*) (\d*)', re.S)
+    r = re.compile('^上架 (.*?) (\d*) (\d*)$', re.S)
     if len(r.findall(msg)) == 0 or r.findall(msg)[0][0] == '':
         return u'请按以下格式上架: 上架 商品名称 售价 类型(输入数字即可：1.涩图，2.黑照，3.表情包)'
     name = r.findall(msg)[0][0]
@@ -322,6 +322,13 @@ def create_good(q, msg):
         cursor.close()
         conn.close()
         return u'有商品尚未完成，请上传该商品的图片先'
+    sql = "select * from shop where category=1 and qq=" + str(q) + ";"
+    cursor.execute(sql)
+    info = cursor.fetchall()
+    if len(info) > 5:
+        cursor.close()
+        conn.close()
+        return u'每人上架的涩图不能多于5份，请先下架'
     add_list = '(' + str(q) + ', ' + str(value) + ", '" + str(name) + "', " + str(category) + ")"
     sql = "insert into shop (qq, value, name, category) values " + add_list + ';'
     cursor.execute(sql)
@@ -369,7 +376,13 @@ def shop_list(num=-1, category=0):
     for item in info:
         if item[shop_status.file_name] != '' and (category == 0 or category == item[shop_status.category]):
             res += str(item[shop_status.id]) + '. ' + str(item[shop_status.name]) + ' 售价:' + \
-                   str(item[shop_status.value]) + '\n'
+                   str(item[shop_status.value])
+            if item[shop_status.category] == 1:
+                res += '涩图\n'
+            elif item[shop_status.category] == 2:
+                res += '黑照\n'
+            else:
+                res += '表情包\n'
     if res == '':
         return '无此类型商品'
     return res
@@ -443,25 +456,29 @@ class MainHandler(cqplus.CQPlusHandler):
                 self.api.send_private_msg(qq, str(nickname[qq]) + ' 未激活')
                 return True
             if G:
-                self.api.send_group_msg(group, shop_list() + '\n可以输入商城 类型(黑照，涩图，表情包)查看分类列表')
+                self.api.send_private_msg(qq, shop_list() + '\n可以输入商城 类型(黑照，涩图，表情包)查看分类列表')
+                self.api.send_group_msg(group, u'已私聊发送商城')
             else:
                 self.api.send_private_msg(qq, shop_list() + '\n可以输入商城 类型(黑照，涩图，表情包)查看分类列表')
             return True
         elif u'商城 涩图' == temp:
             if G:
-                self.api.send_group_msg(group, shop_list(-1, 1))
+                self.api.send_group_msg(group, u'已私聊发送商城')
+                self.api.send_private_msg(qq, shop_list(-1, 1))
             else:
                 self.api.send_private_msg(qq, shop_list(-1, 1))
             return True
         elif u'商城 黑照' == temp:
             if G:
-                self.api.send_group_msg(group, shop_list(-1, 2))
+                self.api.send_group_msg(group, u'已私聊发送商城')
+                self.api.send_private_msg(qq, shop_list(-1, 2))
             else:
                 self.api.send_private_msg(qq, shop_list(-1, 2))
             return True
         elif u'商城 表情包' == temp:
             if G:
-                self.api.send_group_msg(group, shop_list(-1, 3))
+                self.api.send_group_msg(group, u'已私聊发送商城')
+                self.api.send_private_msg(qq, shop_list(-1, 3))
             else:
                 self.api.send_private_msg(qq, shop_list(-1, 3))
             return True
@@ -483,7 +500,7 @@ class MainHandler(cqplus.CQPlusHandler):
             else:
                 self.api.send_private_msg(qq, value_rank())
             return True
-        r = re.compile('购买(\d*)', re.S)
+        r = re.compile('^购买(\d*)$', re.S)
         if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
             s = shop_buy(qq, r.findall(temp)[0])
             self.api.send_private_msg(qq, s['str'])
@@ -493,7 +510,7 @@ class MainHandler(cqplus.CQPlusHandler):
                 else:
                     self.api.send_private_msg(s['seller'], '有人购买了你的 ' + str(s['name']))
             return True
-        r = re.compile('下架(\d*)', re.S)
+        r = re.compile('^下架(\d*)$', re.S)
         if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
             self.api.send_group_msg(group, shop_down(qq, r.findall(temp)[0]))
             return True
@@ -543,13 +560,13 @@ class MainHandler(cqplus.CQPlusHandler):
                     else:
                         self.api.send_group_msg(group, u'余额不足')
                     return
-                r = re.compile('聘用\[CQ:at,qq=(\d*)\]', re.S)
+                r = re.compile('^聘用\[CQ:at,qq=(\d*)\]$', re.S)
                 if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                     if is_active[params['from_qq']] == 0:
                         self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
                         return
                     self.api.send_group_msg(group, buy(params['from_qq'], int(r.findall(temp)[0])))
-                r = re.compile('购买2\[CQ:at,qq=(\d*)\]', re.S)
+                r = re.compile('^购买2\[CQ:at,qq=(\d*)\]$', re.S)
                 if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                     if is_active[params['from_qq']] == 0:
                         self.api.send_group_msg(group, str(nickname[params['from_qq']]) + ' 未激活')
@@ -561,11 +578,11 @@ class MainHandler(cqplus.CQPlusHandler):
                     return
                 if self.group_and_private(temp, params['from_qq'], True):
                     return
-                r = re.compile('查询\[CQ:at,qq=(\d*)\]', re.S)
+                r = re.compile('^查询\[CQ:at,qq=(\d*)\]$', re.S)
                 if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                     self.api.send_group_msg(group, check(int(r.findall(temp)[0])))
                 if params['from_qq'] == admin:
-                    r = re.compile('加钱(\d*)\[CQ:at,qq=(\d*)\]', re.S)
+                    r = re.compile('^加钱(\d*)\[CQ:at,qq=(\d*)\]$', re.S)
                     if len(r.findall(temp)) != 0 and r.findall(temp)[0][0] != '':
                         self.api.send_group_msg(group, add_money(int(r.findall(temp)[0][1]), int(r.findall(temp)[0][0])))
 
@@ -578,7 +595,7 @@ class MainHandler(cqplus.CQPlusHandler):
                 self.api.send_private_msg(params['from_qq'], check(params['from_qq']))
             elif u'上架' in temp:
                 self.api.send_private_msg(params['from_qq'], create_good(params['from_qq'], temp))
-            r = re.compile('\[CQ:image,file=(.*?)\]', re.S)
+            r = re.compile('^\[CQ:image,file=(.*?)\]$', re.S)
             if len(r.findall(temp)) != 0 and r.findall(temp)[0] != '':
                 num = upload_good(params['from_qq'], r.findall(temp)[0])
                 if num != 0:
