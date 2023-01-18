@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS `user`(`id` INT UNSIGNED AUTO_INCREMENT, `qq` VARCHAR(100) NOT NULL, `money` INT DEFAULT 1000, `boss` INT DEFAULT -1, `update_time` DATETIME DEFAULT '0001-01-01 00:00:00', `value` INT DEFAULT 500, `is_active` INT, `coins` INT DEFAULT 10, PRIMARY KEY(`id`)) DEFAULT CHARSET=utf8;
+CREATE TABLE `show_hand`(`qq` VARCHAR(100) NOT NULL, `money` INT, `under` INT, `on_show` VARCHAR(100)) DEFAULT CHARSET=utf8;
+CREATE TABLE `show_hand_status`(`round` INT DEFAULT 0, `now_player` VARCHAR(100), `all_money` INT DEFAULT 0, `remain` INT DEFAULT 0, `card_seq` VARCHAR(100), `player_seq` VARCHAR(100), `ban_bet` DATETIME) DEFAULT CHARSET=utf8;
+CREATE TABLE `shop_status`(`id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, `qq` VARCHAR(100), `file_name` VARCHAR(100), `value` INT DEFAULT 1, `name` VARCHAR(100), `category` INT) DEFAULT CHARSET=utf8;
