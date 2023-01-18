@@ -131,7 +131,7 @@ async def rule(session: CommandSession):
     except CQHttpError:
         pass
 
-@on_command('join_show_hand', aliases=('参加梭哈'))
+@on_command('join_show_hand', aliases=('参加梭哈'), only_to_me=False)
 async def join_show_hand(session: CommandSession):
     await init()
     from_qq = session.event.user_id
@@ -149,13 +149,13 @@ async def join_show_hand(session: CommandSession):
     else:
         res = str(nickname[from_qq] + '未加好友，请先加好友(暗号: 新年快乐)再参与游戏')
     try:
-        if friend_flag:
-            await bot.send_msg(user_id=from_qq, message=res)
+        # if friend_flag:
+        #     await bot.send_msg(user_id=from_qq, message=res)
         await bot.send_group_msg(group_id=group, message=res)
     except CQHttpError:
         pass
 
-@on_command('begin_show_hand', aliases=('开局'))
+@on_command('begin_show_hand', aliases=('开局'), only_to_me=False)
 async def begin_show_hand(session: CommandSession):
     await init()
     from_qq = session.event.user_id
@@ -164,7 +164,7 @@ async def begin_show_hand(session: CommandSession):
     except CQHttpError:
         pass
 
-@on_command('give_up_show_hand', aliases=('弃注'))
+@on_command('give_up_show_hand', aliases=('弃注'), only_to_me=False)
 async def give_up_show_hand(session: CommandSession):
     await init()
     from_qq = session.event.user_id
@@ -173,7 +173,7 @@ async def give_up_show_hand(session: CommandSession):
     except CQHttpError:
         pass
 
-@on_command('follow_show_hand', aliases=('下注'))
+@on_command('follow_show_hand', aliases=('下注'), only_to_me=False)
 async def follow_show_hand(session: CommandSession):
     await init()
     from_qq = session.event.user_id
@@ -182,7 +182,7 @@ async def follow_show_hand(session: CommandSession):
     except CQHttpError:
         pass
 
-@on_command('add_show_hand', aliases=('加注'))
+@on_command('add_show_hand', aliases=('加注'), only_to_me=False)
 async def add_show_hand(session: CommandSession):
     await init()
     from_qq = session.event.user_id
@@ -372,7 +372,7 @@ async def begin_show_hand_sql(qq):
             player[0]) + ";"
         cursor.execute(sql)
         conn.commit()
-        time.sleep(0.5)
+        time.sleep(1)
         await bot.send_msg(user_id=player[0], message=str('你的底牌是:' + translate_card([arr[head]])))
         head += 2
     arr = arr[head:]
@@ -561,17 +561,18 @@ async def judge_show_hand(Round):
         player_list += ',' + str(item['qq'])
     player_list = player_list[1:]
     if Round != 5 and len(players) != 1:
-        res += to_at(arr[0]['qq']) + "请在1分钟内下注（如:若想下最小注或跟上家同注则：下注，若想在上家的基础上加注则：加注 x x为加注" \
-                                     "金额,若想放弃则：弃注）"
+        res += to_at(arr[0]['qq']) + "请在1分钟内下注（指令1：下注，指令2：加注 x x为加注" \
+                                     "金额,指令3：弃注）"
         sql = "update show_hand_status set remain=" + str(len(players)) + ", now_player=" + str(
             arr[0]['qq']) + ", player_seq='" + player_list + "';"
         cursor.execute(sql)
         conn.commit()
         cursor.close()
         conn.close()
-        for player in players:
-            qq = player[show_hand.qq]
-            await bot.send_msg(user_id=qq, message=res)
+        # for player in players:
+        #     qq = player[show_hand.qq]
+        #     await bot.send_msg(user_id=qq, message=res)
+        await bot.send_msg(group_id=group, message=res)
         return
     else:
         sql = "select all_money from show_hand_status;"
@@ -656,8 +657,9 @@ async def give_up_show_hand_sql(qq):
         if int(status[show_hand_status.remain]) == 1:
             cursor.close()
             conn.close()
-            for player in players:
-                await bot.send_msg(user_id=player[show_hand.qq], message=str(nickname[qq] + '已弃注\n'))
+            # for player in players:
+                # await bot.send_msg(user_id=player[show_hand.qq], message=str(nickname[qq] + '已弃注\n'))
+            await bot.send_msg(group_id=group, message=str(nickname[qq] + '已弃注\n'))
             await give_card_show_hand()
             return
         Players = list(map(int, status[show_hand_status.player_seq].split(',')))
@@ -670,12 +672,15 @@ async def give_up_show_hand_sql(qq):
         conn.commit()
         cursor.close()
         conn.close()
-        for player in players:
-            await bot.send_msg(user_id=player[show_hand.qq],
-                               message=str(nickname[qq] + '已弃注\n' + to_at(now_player) + '请在1分钟内下注（如:若想下最小'
-                                                                            '注或跟上家同注则：下注，若想在上家'
-                                                                            '的基础上加注则：加注 x x为加注金额,'
-                                                                            '若想放弃则：弃注）'))
+        # for player in players:
+            # await bot.send_msg(user_id=player[show_hand.qq],
+            #                    message=str(nickname[qq] + '已弃注\n' + to_at(now_player) + '请在1分钟内下注（如:若想下最小'
+            #                                                                 '注或跟上家同注则：下注，若想在上家'
+            #                                                                 '的基础上加注则：加注 x x为加注金额,'
+            #                                                                 '若想放弃则：弃注）'))
+        await bot.send_msg(group_id=group,
+                           message=str(nickname[qq] + '已弃注\n' + to_at(now_player) + '请在1分钟内下注（指令1：下注，指令2：加注 x x为加注" \
+                                     "金额,指令3：弃注)'))
         return
 
 
@@ -732,12 +737,15 @@ async def add_show_hand_sql(qq, money):
         conn.commit()
         cursor.close()
         conn.close()
-        for player in players:
-            time.sleep(0.5)
-            await bot.send_msg(user_id=player[show_hand.qq],
-                               message=str(nickname[qq] + '已下' + str(money) + '\n' + to_at(now_player) + '请在1分钟内下注（如:若想下最小注或跟上家同注' \
-                                                                                             '则：下注，若想在上家的基础上加注则：加注 x' \
-                                                                                             ' x为加注金额,若想放弃则：弃注）'))
+        # for player in players:
+        #     time.sleep(0.5)
+        #     await bot.send_msg(user_id=player[show_hand.qq],
+        #                        message=str(nickname[qq] + '已下' + str(money) + '\n' + to_at(now_player) + '请在1分钟内下注（如:若想下最小注或跟上家同注' \
+        #                                                                                      '则：下注，若想在上家的基础上加注则：加注 x' \
+        #                                                                                      ' x为加注金额,若想放弃则：弃注）'))
+        await bot.send_msg(group_id=group,
+                           message=str(nickname[qq] + '已下' + str(money) + '\n' + to_at(now_player) + '请在1分钟内下注（指令1：下注，指令2：加注 x x为加注" \
+                                     "金额,指令3：弃注)'))
         return
 
 
@@ -805,17 +813,21 @@ async def follow_show_hand_sql(qq):
         if tmp == 0:
             cursor.close()
             conn.close()
-            for player in players:
-                time.sleep(0.5)
-                await bot.send_msg(user_id=int(player[show_hand.qq]), message=str(nickname[qq] + '余额不足50，因此停止下注，所有上家多余注码'
+            # for player in players:
+            #     time.sleep(0.5)
+            #     await bot.send_msg(user_id=int(player[show_hand.qq]), message=str(nickname[qq] + '余额不足50，因此停止下注，所有上家多余注码'
+            #                                                                     '已退回，现直接开牌'))
+            await bot.send_msg(group_id=group, message=str(nickname[qq] + '余额不足50，因此停止下注，所有上家多余注码'
                                                                                 '已退回，现直接开牌'))
             for i in range(status[show_hand_status.round], 5):
                 await give_card_show_hand()
             return
         else:
-            for player in players:
-                time.sleep(0.5)
-                await bot.send_msg(user_id=int(player[show_hand.qq]), message=str(nickname[qq] + '已show_hand，注额' + str(tmp)
+            # for player in players:
+            #     time.sleep(0.5)
+            #     await bot.send_msg(user_id=int(player[show_hand.qq]), message=str(nickname[qq] + '已show_hand，注额' + str(tmp)
+            #                        + ',若上家与此注额有差额，则已退回差价'))
+            await bot.send_msg(group_id=group, message=str(nickname[qq] + '已show_hand，注额' + str(tmp)
                                    + ',若上家与此注额有差额，则已退回差价'))
             if status[show_hand_status.remain] == 1:
                 cursor.close()
@@ -829,11 +841,13 @@ async def follow_show_hand_sql(qq):
                 conn.commit()
                 cursor.close()
                 conn.close()
-                for player in players:
-                    time.sleep(0.5)
-                    await bot.send_msg(user_id=int(player[show_hand.qq]), message=str(to_at(now_player) + '请下注（如:若想下最小注或跟上家同注则：下注，若想'
-                                                                                         '在上家的基础上加注则：加注 x x为加注金额,若想放弃'
-                                                                                         '则：弃注）'))
+                # for player in players:
+                #     time.sleep(0.5)
+                #     await bot.send_msg(user_id=int(player[show_hand.qq]), message=str(to_at(now_player) + '请下注（如:若想下最小注或跟上家同注则：下注，若想'
+                #                                                                          '在上家的基础上加注则：加注 x x为加注金额,若想放弃'
+                #                                                                          '则：弃注）'))
+                await bot.send_msg(group_id=group, message=str(to_at(now_player) + '请下注（指令1：下注，指令2：加注 x x为加注" \
+                                     "金额,指令3：弃注)'))
                 return
     else:
         sql = "update show_hand set money=money+" + str(money) + " where qq=" + str(qq) + ";"
@@ -846,17 +860,20 @@ async def follow_show_hand_sql(qq):
         conn.commit()
         cursor.close()
         conn.close()
-        for player in players:
-            time.sleep(0.5)
-            await bot.send_msg(user_id=player[show_hand.qq], message=str(nickname[qq] + '已下注' + str(money)))
+        # for player in players:
+        #     time.sleep(0.5)
+        #     await bot.send_msg(user_id=player[show_hand.qq], message=str(nickname[qq] + '已下注' + str(money)))
+        await bot.send_msg(group_id=group, message=str(nickname[qq] + '已下注' + str(money)))
         if status[show_hand_status.remain] == 1:
             await give_card_show_hand()
         else:
-            for player in players:
-                time.sleep(0.5)
-                await bot.send_msg(user_id=player[show_hand.qq], message=str(to_at(now_player) + '请在1分钟内下注（如:若想下最小注或跟上家同注则：下注，若想'
-                                                                                     '在上家的基础上加注则：加注 x x为加注金额,若想放弃'
-                                                                                     '则：弃注）'))
+            # for player in players:
+            #     time.sleep(0.5)
+            #     await bot.send_msg(user_id=player[show_hand.qq], message=str(to_at(now_player) + '请在1分钟内下注（如:若想下最小注或跟上家同注则：下注，若想'
+            #                                                                          '在上家的基础上加注则：加注 x x为加注金额,若想放弃'
+            #                                                                          '则：弃注）'))
+            await bot.send_msg(group_id=group, message=str(to_at(now_player) + '请在1分钟内下注（指令1：下注，指令2：加注 x x为加注" \
+                                     "金额,指令3：弃注)'))
         return
 
 @nonebot.scheduler.scheduled_job('cron', second='*/59')
@@ -877,10 +894,10 @@ async def timer_task():
         temp = datetime.datetime.now() - datetime.timedelta(minutes=1)
         if temp > status[show_hand_status.ban_bet]:
             if status[show_hand_status.round] is not 0:
-                await give_up_show_hand_sql(status[show_hand_status.now_player])
+                await give_up_show_hand_sql(int(status[show_hand_status.now_player]))
             else:
                 if len(players) > 1:
-                    await begin_show_hand_sql(players[0][show_hand.qq])
+                    await begin_show_hand_sql(int(players[0][show_hand.qq]))
 
 @on_request('friend')
 async def add_friend(session: RequestSession):
