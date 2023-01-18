@@ -1,0 +1,28 @@
+[2023-01-18 15:09:36,986 nonebot] INFO: Succeeded to import and load "nonebot.plugins.base"
+[2023-01-18 15:09:36,992 nonebot] INFO: Succeeded to import and load "get_list.plugins.get_user_init"
+[2023-01-18 15:09:36,994 nonebot] ERROR: Failed to import and load "main_logic.plugins.main_logic", error: expected an indented block (main_logic.py, line 67)
+[2023-01-18 15:09:36,994 nonebot] ERROR: expected an indented block (main_logic.py, line 67)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/nonebot-1.9.1-py3.9.egg/nonebot/plugin.py", line 564, in _load_plugin
+    module = importlib.import_module(module_path)
+  File "/usr/local/lib/python3.9/importlib/__init__.py", line 127, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1030, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1007, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 986, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 680, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 786, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 923, in get_code
+  File "<frozen importlib._bootstrap_external>", line 853, in source_to_code
+  File "<frozen importlib._bootstrap>", line 228, in _call_with_frames_removed
+  File "/root/benceli/qqbot/main_logic/plugins/main_logic.py", line 67
+    if friend['user_id'] == from_qq:
+    ^
+IndentationError: expected an indented block
+[2023-01-18 15:09:36,994 nonebot] INFO: Running on 127.0.0.1:8080
+ * Serving Quart app ''
+ * Environment: production
+ * Please use an ASGI server (e.g. Hypercorn) directly in production
+ * Debug mode: True
+ * Running on http://127.0.0.1:8080 (CTRL + C to quit)
+[2023-01-18 15:09:37,010 nonebot] INFO: Scheduler started
