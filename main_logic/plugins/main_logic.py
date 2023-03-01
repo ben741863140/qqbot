@@ -20,6 +20,7 @@ class data_status:
     value = 5
     is_active = 6
     coins = 7
+    cal_speak = 8
 
 
 class shop_status:
@@ -48,7 +49,8 @@ class show_hand:
     on_show = 3
 
 master = 741863140
-group = 769981168
+group = 692991289
+big_group = 769981168
 nickname = {}
 bot = nonebot.get_bot()
 
@@ -198,7 +200,7 @@ async def add_show_hand(session: CommandSession):
 async def init():
     if nickname:
       return
-    info_list = await bot.get_group_member_list(group_id=group)
+    info_list = await bot.get_group_member_list(group_id=big_group)
     for item in info_list:
         if item['card'] != '':
             nickname[int(item['user_id'])] = item['card']
@@ -561,8 +563,7 @@ async def judge_show_hand(Round):
         player_list += ',' + str(item['qq'])
     player_list = player_list[1:]
     if Round != 5 and len(players) != 1:
-        res += to_at(arr[0]['qq']) + "请在1分钟内下注（指令1：下注，指令2：加注 x x为加注" \
-                                     "金额,指令3：弃注）"
+        res += to_at(arr[0]['qq']) + "请在1分钟内下注（指令1：下注，指令2：加注 x x为加注金额,指令3：弃注）"
         sql = "update show_hand_status set remain=" + str(len(players)) + ", now_player=" + str(
             arr[0]['qq']) + ", player_seq='" + player_list + "';"
         cursor.execute(sql)
@@ -592,6 +593,7 @@ async def judge_show_hand(Round):
         conn.close()
         await add_money(arr[0]['qq'], int(money[0]))
         await bot.send_group_msg(group_id=group, message=res)
+        await bot.send_group_msg(group_id=big_group, message=res)
         return
 
 async def give_card_show_hand():
@@ -654,6 +656,9 @@ async def give_up_show_hand_sql(qq):
             datetime.datetime.now().strftime("'%Y-%m-%d %H:%M:%S'")) + ";"
         cursor.execute(sql)
         conn.commit()
+        if len(players) == 1:
+            await give_card_show_hand()
+            return
         if int(status[show_hand_status.remain]) == 1:
             cursor.close()
             conn.close()
@@ -876,6 +881,36 @@ async def follow_show_hand_sql(qq):
                                      "金额,指令3：弃注)'))
         return
 
+async def get_speaking_borad(res):
+  conn = pymysql.connect(host='localhost', user='root', password='123456',
+                           database='qqbot', charset='utf8')
+  cursor = conn.cursor()
+  sql = "select * from user order by cal_speak desc;"
+  cursor.execute(sql)
+  info = cursor.fetchall()
+  cursor.close()
+  conn.close()
+  for i, item in enumerate(info):
+    if i == 5:
+      break
+    res += str(i + 1) + '. ' + str(nickname[int(item[data_status.qq])]) + ' ' + str(item[data_status.cal_speak]) + '条消息\n'
+  return res
+
+@on_command('cal_speaking', aliases=('屁话排行榜'), only_to_me=False)
+async def speaking_board(session: CommandSession):
+  await init()
+  title = '累计屁话:\n'
+  res = await get_speaking_borad(title)
+  await bot.send_msg(group_id=big_group, message=res)
+
+@nonebot.scheduler.scheduled_job('cron', hour='18')
+async def cal_speak_task():
+  await init()
+  title = '屁话排行榜:\n'
+  res = await get_speaking_borad(title)
+  await bot.send_msg(group_id=big_group, message=res)
+
+
 @nonebot.scheduler.scheduled_job('cron', second='*/59')
 async def timer_task():
     await init()
@@ -899,6 +934,22 @@ async def timer_task():
                 if len(players) > 1:
                     await begin_show_hand_sql(int(players[0][show_hand.qq]))
 
+@nonebot.scheduler.scheduled_job('cron', hour='11')
+async def add_money_task():
+    conn = pymysql.connect(host='localhost', user='root', password='123456',
+                           database='qqbot', charset='utf8')
+    cursor = conn.cursor()
+    sql = "select * from user;"
+    cursor.execute(sql)
+    id_list = cursor.fetchall()
+    for leader in id_list:
+        leader_id = leader[data_status.id]
+        sql = "update user set money=money+" + str(1000) + " where id=" + str(leader_id) + ";"
+        cursor.execute(sql)
+        conn.commit()
+    cursor.close()
+    conn.close()
+
 @on_request('friend')
 async def add_friend(session: RequestSession):
     if '新年快乐' in session.event.comment:
@@ -906,3 +957,5 @@ async def add_friend(session: RequestSession):
       return
     else:
       await session.reject('请说暗号')
+
+
